@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# gzip
+*.gz
+
+# I hate DS_store
+*.DS_Store
+
+# data directory
+data/*
+
