@@ -7,6 +7,7 @@ import scipy
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
+import matplotlib.pyplot as plt
 
 class Node:
     def __init__(self):
@@ -232,79 +233,34 @@ class WoeScaler(BaseEstimator, TransformerMixin):
             woe_max = max(self.woe_values_[var].values())
             _X[var] = woe_vals.fillna(woe_max)
         return _X
-    
 
 
-class ScorecardPyEncoder(BaseEstimator, TransformerMixin):
-    """
-    Automatically filters and woebins data using scorecardpy
-
-    Methods
-    -------
-        fit
-            finds preprocessing strategies for all cols
-        transform
-            preprocesses all  cols
-        fit_transform
-            fit & transform
-    """
-
-    def __init__(self, filter_flag=False, manual_bins={}):
-        self.filter_flag = filter_flag
-        self.manual_bins = manual_bins
-
-    def fit(self, X, y):
-        """
-        Parameters
-        ----------
-            X : dataframe
-                data to be encoded
-
-            y : target
-
-        Returns
-        ------
-            self : BaseEstimator
-                fitted transformer
-        """
-        data = X.copy()
-        data["bad_flag"] = y
-
-        if self.filter_flag:
-            filtered_results = sc.var_filter(data, y="bad_flag", return_rm_reason=True)
-
-            self.filter_reasons_ = filtered_results["rm"]
-            self.dropped_cols_ = [
-                c for c in data.columns if c not in filtered_results["dt"].columns
-            ]
-            woebin_data = filtered_results["dt"]
+def plot_bins(X,y, columns,splits):
+    data = X.copy()
+    data['target'] =y
+    for col in columns:
+        if data[col].dtype == 'O':
+            data[f'{col}_binned'] = data[col]
         else:
-            woebin_data = data
+            data[f'{col}_binned'] = pd.cut(data[col],bins=splits[col]).astype('str')
 
-        self.woe_bins_ = sc.woebin(woebin_data, y="bad_flag")
+        data['obs_count'] =1
+        agg = data.groupby(f'{col}_binned').agg({'target':'mean','obs_count':'sum'})        
+        # hack - add bin for missings
+        agg['sorter'] = agg.index
+        agg['sorter'] = agg.sorter.apply(lambda x: x.split(', ')[0].replace('(','') )
+        agg['sorter'] = pd.to_numeric(agg.sorter,errors='coerce') 
+        agg = agg.sort_values(by='sorter')
+        agg['target rate %'] = agg.target *100
+        ax = agg['obs_count'].plot.bar(alpha = 0.5,color='grey')
+        ax.legend(['obs count'])
+        plt.ylabel('obs count')
+        plt.xlabel('bin group')
 
-        # manual overwrite, based on business intuitiion
-        for k in self.manual_bins:
-            self.woe_bins_[k] = self.manual_bins[k]
+        ax2 = agg['target rate %'].plot.line(secondary_y=True, ax=ax)
+        ax2.legend(['target rate %'])
+        plt.ylabel('target rate %')
+        plt.title(f'Target rate vs. binned - {col} \n')
+        ax.set_xticklabels(ax.get_xticklabels(), rotation = 45)
 
-        return self
-
-    def transform(self, X, y=None):
-        """
-        Parameters
-        -----------
-            X : dataframe
-                data to be encoded
-        Returns
-        -------
-            X : dataframe
-                encoded data
-        """
-        if self.filter_flag:
-            X_woebin = X.copy().drop(columns=self.dropped_cols_)
-        else:
-            X_woebin = X.copy()
-
-        return sc.woebin_ply(X_woebin, self.woe_bins_)
-
-
+        plt.show()
