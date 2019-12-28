@@ -126,8 +126,10 @@ class TreeBinner(BaseEstimator, TransformerMixin):
             fit & transform
     """
 
-    def __init__(self):
-        self.single_var_decision_tree = SingleVariableDecisionTreeClassifier()
+    def __init__(self, max_depth=5 , min_gini_decrease=1e-4, min_samples_per_leaf=10):
+        self.single_var_decision_tree = SingleVariableDecisionTreeClassifier(max_depth=max_depth,
+                                                    min_gini_decrease=min_gini_decrease,
+                                                    min_samples_per_leaf=min_samples_per_leaf)
 
     def fit(self, X, y):
         """
