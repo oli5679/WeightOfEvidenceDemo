@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 
 
 class Node:
+    '''
+    Decision tree Node
+    '''
     def __init__(self):
         self.threshold = None
         self.left = None
@@ -18,6 +21,9 @@ class Node:
 
 
 class SingleVariableDecisionTreeClassifier:
+    '''
+    Single variable Decision tree classifier
+    '''
     def __init__(self, max_depth=5, min_gini_decrease=1e-4, min_samples_per_leaf=10):
         self.max_depth = max_depth
         self.min_gini_decrease = min_gini_decrease
@@ -25,11 +31,13 @@ class SingleVariableDecisionTreeClassifier:
 
     def fit(self, X, y):
         self.splits_ = [-np.inf, np.inf]
+
+        # Sort X & y by X values
         sort_idx = X[X.notnull()].sort_values().index
+        X_sorted = X[sort_idx]
+        y_sorted = y[sort_idx]
 
-        X_sorted = X[sort_idx].reset_index(drop=True)
-        y_sorted = y[sort_idx].reset_index(drop=True)
-
+        # fit tree & unpack splits
         self.tree_ = self._grow_tree(X_sorted, y_sorted)
         self._unpack_splits(self.tree_)
         self.splits_ = sorted(self.splits_)
@@ -42,8 +50,7 @@ class SingleVariableDecisionTreeClassifier:
 
     def _best_split(self, X, y):
         y_count = y.size
-        if y_count <= 1:
-            return None
+
         y_0_total = np.sum(y == 0)
         y_1_total = np.sum(y == 1)
 
@@ -60,24 +67,30 @@ class SingleVariableDecisionTreeClassifier:
         gini_left = self._gini(y_0_left, y_1_left)
         gini_right = self._gini(y_0_right, y_1_right)
 
-        gini_combined = (
+        gini_decrease = baseline_gini - ((
             (gini_left * y_left_count) + (gini_right * y_right_count)
-        ) / y_count
-        gini_valid = gini_combined[
+        ) / y_count) 
+
+        # only consider candidate splits where:
+        #    (a) X value has changed
+        #    (b) At least self.min_samples_per_leaf in both left & right splits
+        #    (c) Gini decrease of at least self.min_gini_decrease
+
+        gini_valid = gini_decrease[
             (X != X.shift())
-            & (y_left_count > self.min_samples_per_leaf)
-            & (y_right_count > self.min_samples_per_leaf)
+            & (y_left_count >= self.min_samples_per_leaf)
+            & (y_right_count >= self.min_samples_per_leaf)
+            & (gini_decrease >= self.min_gini_decrease)
         ]
+
+        # If no candidate splits satisfy a-c, return None
         if gini_valid.shape[0] == 0:
             return None
-        min_idx = gini_valid.idxmin()
-        min_gini = gini_valid.min()
 
-        if baseline_gini - min_gini > self.min_gini_decrease:
-            split = X[min_idx]
-            return split
+        # Else return best split
         else:
-            return None
+            return  X[gini_valid.idxmax()]
+
 
     def _grow_tree(self, X, y, depth=0):
         node = Node()
@@ -115,8 +128,8 @@ class SingleVariableDecisionTreeClassifier:
 
 class TreeBinner(BaseEstimator, TransformerMixin):
     """
-    Autobinning tool - automated feature binning for regression models by fitting single-variable trees
-    
+    Autobinning tool - automated tree binning by fitting single variable decision trees
+
     Methods
     -------
         fit
@@ -136,7 +149,7 @@ class TreeBinner(BaseEstimator, TransformerMixin):
 
     def fit(self, X, y):
         """
-        Find splits for all cols in X which exceed ROC-AUC threshold
+        Finds bin-thresholds for columns X given target y 
         
         Params
         ------
@@ -181,9 +194,13 @@ class TreeBinner(BaseEstimator, TransformerMixin):
 
 class WoeScaler(BaseEstimator, TransformerMixin):
     """
-    Automatically calculates Quasi-WOE bin values according to pre-specified bin thresholds
+    Automatically calculates Quasi-WOE values for all categorical columns
 
-    quasi-woe = logit of average bad rate in bin, will make data linear in log-odds of bad rate.
+    quasi-woe = logit of average bad rate in bin, will make data linear in log-odds of bad rate. 
+
+    Clips to be between max & min, to avoid infinity issues.
+
+    NOTE - leaves numeric columns unchanged
 
     Methods
     -------
@@ -244,6 +261,9 @@ class WoeScaler(BaseEstimator, TransformerMixin):
 
 
 def plot_bins(X, y, columns, splits):
+    """
+    Utility - plots target rates & distributions for give splits 
+    """
     data = X.copy()
     data["target"] = y
     for col in columns:
