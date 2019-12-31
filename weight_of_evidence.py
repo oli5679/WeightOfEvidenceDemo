@@ -75,7 +75,7 @@ class SingleVariableDecisionTreeClassifier:
 
     def _gini(self, y_1, y_count):
         """
-        Finds Gini values for series of y values
+        Finds cumulative Gini Impurity values for series of y values
 
         Formula = 1 - p^2 - (1-p)^2
 
@@ -91,7 +91,8 @@ class SingleVariableDecisionTreeClassifier:
 
     def _best_split(self, X, y):
         """
-        Finds split for X that maximises Gini decrease
+        Finds split for X that has lowest average impurity of the two children, weighted by 
+        population.
 
         Args:
             X (series): variable to be split
@@ -124,8 +125,8 @@ class SingleVariableDecisionTreeClassifier:
 
         #  only consider candidate splits where:
         #    (a) X value has changed
-        #    (b) At least self.min_samples_per_node in both left & right splits
-        #    (c) Gini decrease of at least self.min_gini_decrease
+        #    (b) At least min_samples_per_node in both left & right splits
+        #    (c) Gini decrease of at least min_gini_decrease
 
         gini_valid = gini_decrease[
             (X != X.shift())
@@ -144,13 +145,17 @@ class SingleVariableDecisionTreeClassifier:
 
     def _grow_tree(self, X, y, depth=0):
         """
-        Greedily creates tree with best splits that satisfy min_gini_decrease, min_samples_per_node & max_depth
+        Greedily creates tree with largest impurity decrease best splits that satisfy:
+            min_gini_decrease
+            min_samples_per_node
+            max_depth
 
         Args:
             X (series): variable to be split
             y (series): target to split on
 
-        returns Node object recording these splits
+        Returns:
+            Node object recording split threshold, and left & right children with possible further splits
         """
         node = Node()
         if depth < self.max_depth:
@@ -169,7 +174,7 @@ class SingleVariableDecisionTreeClassifier:
 
     def _unpack_splits(self, node):
         """
-        Recursively unpacks splits from node, and appends leaf nodes to self.splits_
+        Recursively unpacks splits from node, and appends leaf nodes' thresholds to self.splits_
 
         Args:
             node (Node): node to be unpacked
@@ -253,7 +258,7 @@ class WoeScaler(BaseEstimator, TransformerMixin):
 
     NOTE - leaves numeric columns unchanged
 
-    NOTE - does not standardise Quasi-Woe
+    NOTE - does not scale by population bad-rate
 
     Methods:
         fit: finds quasi-woe-values for each category, for each categorical varaible
@@ -299,6 +304,7 @@ class WoeScaler(BaseEstimator, TransformerMixin):
         _X = X.copy()
         for var in self.woe_values_.keys():
             woe_vals = X[var].map(self.woe_values_[var])
+            # Fill unseen values with highest WOE == most risky
             woe_max = max(self.woe_values_[var].values())
             _X[var] = woe_vals.fillna(woe_max)
         return _X
