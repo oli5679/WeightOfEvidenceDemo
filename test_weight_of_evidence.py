@@ -2,7 +2,11 @@ import pytest
 import weight_of_evidence
 import numpy as np
 import pandas as pd
-
+from sklearn.preprocessing import StandardScaler
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import roc_auc_score
 
 X_SORTED = pd.Series([1, 1, 2, 2, 3, 3, 3, 3, 3, 5, 10, 20,])
 
@@ -26,8 +30,6 @@ X_CAT = [
 ]
 
 X_CAT_DF = pd.DataFrame(data=X_CAT, columns=["company_age"])
-
-HOMECREDIT_PATH = "~/Downloads/application_train.csv"
 
 EXPECTED_GINI_DECREASES = pd.Series(
     [
@@ -60,6 +62,19 @@ EXPECTED_WOE_VALUES = pd.Series(
         0.693147181,
         -0.405465108,
         -0.405465108,
+    ]
+)
+
+HOMECREDIT_PATH = "~/Downloads/application_train.csv"
+
+HOMECREDIT_EXCLUDE_COLS = ["SK_ID_CURR", "TARGET", "CODE_GENDER", "ORGANIZATION_TYPE"]
+
+WOE_BIN_PIPELINE = Pipeline(
+    steps=[
+        ("tree_bin", weight_of_evidence.TreeBinner()),
+        ("woe_scale", weight_of_evidence.WoeScaler()),
+        ("standard_scale", StandardScaler()),
+        ("log_reg_classifier", LogisticRegression(solver="lbfgs", max_iter=1e6)),
     ]
 )
 
@@ -147,5 +162,22 @@ def test_woe_scaler_transform(woe_scaler):
 
 
 def test_pipeline():
+    """
+    Tests E2E pipeline on homecredit dataset. Requires it to be downloaded before.
 
-    assert 1 == 1
+    This is quite slow!
+    """
+    data = pd.read_csv(HOMECREDIT_PATH)
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=1234)
+
+    X = data.drop(columns=HOMECREDIT_EXCLUDE_COLS)
+    y = data.TARGET
+    auc_total = 0
+    for train, test in cv.split(X, y):
+        prediction = WOE_BIN_PIPELINE.fit(X.iloc[train], y.iloc[train]).predict_proba(
+            X.iloc[test]
+        )
+        auc = roc_auc_score(y_true=y.iloc[test], y_score=prediction[:, 1])
+        auc_total += auc
+
+    assert (auc_total / 5) > 0.72
