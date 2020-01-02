@@ -105,34 +105,18 @@ class SingleVariableDecisionTreeClassifier:
 
         NOTE - returns None if no split found that satisfies min_gini_decrease & min_samples_per_node
         """
-        y_count_total = y.size
-        y_1_total = np.sum(y == 1)
-
-        y_1_left = (y == 1).cumsum()
-        y_1_right = y_1_total - y_1_left
-
-        y_count_left = (y < 2).cumsum()
-        y_count_right = y_count_total - y_count_left
-
-        baseline_gini = self._gini(y_1_total, y_count_total)
-        gini_left = self._gini(y_1_left, y_count_left)
-        gini_right = self._gini(y_1_right, y_count_right)
-
-        # compare unsplit Gini with weighted average of Gini of left & right node
-        gini_decrease = baseline_gini - (
-            ((gini_left * y_count_left) + (gini_right * y_count_right)) / y_count_total
-        )
+        gini_decreases, y_count_left, y_count_right = self._find_gini_decreases(y)
 
         #  only consider candidate splits where:
         #    (a) X value has changed
         #    (b) At least min_samples_per_node in both left & right splits
         #    (c) Gini decrease of at least min_gini_decrease
 
-        gini_valid = gini_decrease[
+        gini_valid = gini_decreases[
             (X != X.shift())
             & (y_count_left >= self.min_samples_per_node)
             & (y_count_right >= self.min_samples_per_node)
-            & (gini_decrease >= self.min_gini_decrease)
+            & (gini_decreases >= self.min_gini_decrease)
         ]
 
         # If no candidate splits satisfy a-c, return None
@@ -142,6 +126,42 @@ class SingleVariableDecisionTreeClassifier:
         # Else return best split
         else:
             return X[gini_valid.idxmax()]
+
+    def _find_gini_decreases(self, y):
+        """
+        Finds how much avg. Gini impurity would decrease if split into left & right:
+            left = before point
+            right = including & after point
+            decrease = y Gini - population weighted avg. Gini of left & right
+        
+        Args:
+            y (series): series to calc. Gini decreases
+
+        Returns:
+            gini_decreases (series): decrease in Gini from splitting before/after every point
+            y_count_left (series): count of cumul datapoints. before each point
+            y_count_right (series): count of cumul datapoints. including & after each point
+        """
+        y_count_total = y.size
+        y_1_total = np.sum(y == 1)
+
+        # y_1_left = sum of cumulative 1s BEFORE point
+        y_1_left = (y == 1).cumsum() - y
+        y_1_right = y_1_total - y_1_left
+
+        y_count_left = (y < 2).cumsum() - 1
+        y_count_right = y_count_total - y_count_left
+
+        baseline_gini = self._gini(y_1_total, y_count_total)
+        gini_left = self._gini(y_1_left, y_count_left)
+        gini_right = self._gini(y_1_right, y_count_right)
+
+        # compare unsplit Gini with weighted average of Gini of left & right node
+        gini_decreases = baseline_gini - (
+            ((gini_left * y_count_left) + (gini_right * y_count_right)) / y_count_total
+        )
+
+        return (gini_decreases, y_count_left, y_count_right)
 
     def _grow_tree(self, X, y, depth=0):
         """
