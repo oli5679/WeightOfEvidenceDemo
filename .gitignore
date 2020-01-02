@@ -137,3 +137,5 @@ dmypy.json
 # data directory
 data/*
 
+#Microsoft tempfiles
+~$*
