@@ -374,7 +374,7 @@ def plot_bins(X, y, splits, space="%"):
         ax2 = agg[f"target rate {space}"].plot.line(secondary_y=True, ax=ax)
         ax2.legend([f"target rate {space}"])
         plt.ylabel(f"target rate {space}")
-        plt.title(f"Target rate vs. binned - {col} \n")
+        plt.title(f"Target rate vs. binned {col} \n")
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
 
         plt.show()
