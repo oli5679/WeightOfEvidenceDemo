@@ -151,9 +151,15 @@ def test_tree_binner_transform(tree_binner):
 
 def test_logit_scaler_fit(logit_scaler):
     logit_scaler.fit(X_CAT_DF, Y)
-    assert logit_scaler.logit_values_["company_age"]["young"] == pytest.approx(-0.405465108)
-    assert logit_scaler.logit_values_["company_age"]["medium"] == pytest.approx(1.098612289)
-    assert logit_scaler.logit_values_["company_age"]["old"] == pytest.approx(0.693147181)
+    assert logit_scaler.logit_values_["company_age"]["young"] == pytest.approx(
+        -0.405465108
+    )
+    assert logit_scaler.logit_values_["company_age"]["medium"] == pytest.approx(
+        1.098612289
+    )
+    assert logit_scaler.logit_values_["company_age"]["old"] == pytest.approx(
+        0.693147181
+    )
 
 
 def test_logit_scaler_transform(logit_scaler):

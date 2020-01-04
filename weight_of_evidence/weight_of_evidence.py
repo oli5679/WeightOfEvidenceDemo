@@ -184,7 +184,6 @@ class SingleVariableDecisionTreeClassifier:
         if node.is_leaf and node.threshold is not None:
             self.splits_.append(node.threshold)
 
-
     def fit(self, X, y):
         """
         Finds best splits for X, given target y
