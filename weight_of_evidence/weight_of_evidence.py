@@ -263,7 +263,9 @@ class TreeBinner(BaseEstimator, TransformerMixin):
         """
         _X = X.copy()
         for feature in self.splits_.keys():
-            binned_col = pd.cut(_X[feature], self.splits_[feature]).astype("str")
+            breaks = self.splits_[feature]
+            labels = pd.IntervalIndex.from_breaks(breaks).astype(str)
+            binned_col = pd.cut(_X[feature], breaks, labels=labels).astype("str")
             binned_col[_X[feature].isna()] = "missing"
             _X[feature] = binned_col
         return _X
