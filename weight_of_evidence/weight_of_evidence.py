@@ -265,9 +265,8 @@ class TreeBinner(BaseEstimator, TransformerMixin):
         for feature in self.splits_.keys():
             breaks = self.splits_[feature]
             labels = pd.IntervalIndex.from_breaks(breaks).astype(str)
-            binned_col = pd.cut(_X[feature], breaks, labels=labels).astype("str")
-            binned_col[_X[feature].isna()] = "missing"
-            _X[feature] = binned_col
+            _X[feature] = pd.cut(X[feature], breaks, labels=labels).astype("str")
+            _X.loc[X[feature].isna(), feature] = "missing"
         return _X
 
 
@@ -307,9 +306,8 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         _data["target"] = y
         for col in X.select_dtypes(include=["object"]).columns:
             agg = _data.groupby(col)[["target"]].mean()
-            logit_values = scipy.special.logit(agg["target"])
             clipped_logit_values = np.clip(
-                -self.clip_thresh, logit_values, self.clip_thresh
+                -self.clip_thresh, scipy.special.logit(agg["target"]), self.clip_thresh
             )
             self.logit_values_[col] = clipped_logit_values.to_dict()
         return self
@@ -326,10 +324,10 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         """
         _X = X.copy()
         for var in self.logit_values_.keys():
-            logit_vals = X[var].map(self.logit_values_[var])
+            _X[var] = X[var].map(self.logit_values_[var])
             # Fill unseen values with highest logit == most risky
             logit_max = max(self.logit_values_[var].values())
-            _X[var] = logit_vals.fillna(logit_max)
+            _X[var].fillna(logit_max, inplace=True)
         return _X
 
 
