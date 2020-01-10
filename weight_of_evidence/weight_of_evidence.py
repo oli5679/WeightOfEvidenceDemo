@@ -266,7 +266,7 @@ class TreeBinner(BaseEstimator, TransformerMixin):
             breaks = self.splits_[feature]
             labels = pd.IntervalIndex.from_breaks(breaks).astype(str)
             _X[feature] = pd.cut(X[feature], breaks, labels=labels).astype("str")
-            _X.loc[X[feature].isna(), feature] = "missing"
+        _X[X.isna()] = "missing"
         return _X
 
 
@@ -324,10 +324,12 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         """
         _X = X.copy()
         for var in self.logit_values_.keys():
-            _X[var] = X[var].map(self.logit_values_[var])
+            logit_val = X[var].map(self.logit_values_[var])
             # Fill unseen values with highest logit == most risky
             logit_max = max(self.logit_values_[var].values())
-            _X[var].fillna(logit_max, inplace=True)
+            logit_val[logit_val.isna()] = logit_max
+            _X[var] = logit_val
+
         return _X
 
 
