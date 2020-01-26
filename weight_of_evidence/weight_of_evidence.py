@@ -379,4 +379,4 @@ def plot_bins(X, y, splits, space="%"):
         plt.title(f"Target rate vs. binned {col} \n")
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
 
-        plt.show()
+        plt.show(
