@@ -1,6 +1,10 @@
-# Weight of evidence Demo
+# Weight of Evidence Demo
 
 Simple implementation of 'weight of evidence binning' feature engineering method to improve perfomance of linear models in binary clasificaiton tasks.
+
+## Explanation
+
+See admin/WoePresentation.pptx for more details on this methodology.
 
 ## Prerequesites
 
@@ -8,24 +12,24 @@ Download Anaconda [here](https://docs.anaconda.com/anaconda/install/)
 
 ## Setup
 
-- install & activateenvironment
+### install & activate environmentß
 
     conda env create -f environment.yml
     conda activate weightOfEvidence
 
-- download test data 'German Credit'
+### download test data 'German Credit'
 
     cd weight_of_evidence
     bash get_dataset.sh
 
-- run unit tests
+### run unit tests*
 
     cd weight_of_evidence
     pytest .
 
 ## Examples
 
-- fit sklearn pipeline on dataset
+### fit sklearn pipeline on dataset
 
     from sklearn.base import BaseEstimator, TransformerMixin
     import pandas as pd
@@ -83,7 +87,7 @@ Download Anaconda [here](https://docs.anaconda.com/anaconda/install/)
 
     woebin_logit.fit(X, y)
 
-- create plots explaining fitted model
+### create plots explaining fitted model
 
     var_importance = weight_of_evidence.plot_feature_importance(
         X.columns, woebin_logit["log_reg_classifier"].coef_[0], n=5)
