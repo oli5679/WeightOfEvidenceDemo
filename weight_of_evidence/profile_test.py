@@ -8,34 +8,52 @@ from sklearn.model_selection import StratifiedKFold
 from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.compose import ColumnTransformer
 from sklearn.metrics import brier_score_loss, roc_auc_score
-import lightgbm as lgb
 import seaborn as sns
 import matplotlib.pyplot as plt
 
 import weight_of_evidence
 
-data = pd.read_csv("~/Downloads/application_train.csv")
+"""
+Code profile script, for tuning purposes
+"""
 
-EXCLUDE_COLS = [
-    "SK_ID_CURR",
-    "TARGET",
-    "CODE_GENDER",
-    "ORGANIZATION_TYPE",
-    "NAME_FAMILY_STATUS",
+
+DATA_PATH = "data/german_credit_data.csv"
+
+COLUMN_NAMES = [
+    "chk_acct",
+    "duration",
+    "credit_his",
+    "purpose",
+    "amount",
+    "saving_acct",
+    "present_emp",
+    "installment_rate",
+    "sex",
+    "other_debtor",
+    "present_resid",
+    "property",
+    "age",
+    "other_install",
+    "housing",
+    "n_credits",
+    "job",
+    "n_people",
+    "telephone",
+    "foreign",
+    "response",
 ]
 
-CATERORICAL_COLS = data.drop(columns=EXCLUDE_COLS).select_dtypes("O").columns
+data = pd.read_csv(DATA_PATH, sep=" ", names=COLUMN_NAMES)
 
-NUMERIC_COLS = data.drop(columns=EXCLUDE_COLS).select_dtypes("int64").columns
+data["response"] = data["response"] - 1
 
-data[CATERORICAL_COLS] = data[CATERORICAL_COLS].fillna("MISSING")
-
-combined_results = pd.DataFrame()
-
-cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=1234)
+EXCLUDE_COLS = [
+    "response",
+]
 
 X = data.drop(columns=EXCLUDE_COLS)
-y = data.TARGET
+y = data["response"]
 
 
 woebin_logit = Pipeline(

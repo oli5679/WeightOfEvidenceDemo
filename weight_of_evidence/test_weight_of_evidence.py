@@ -65,19 +65,6 @@ EXPECTED_LOGIT_VALUES = pd.Series(
     ]
 )
 
-HOMECREDIT_PATH = "~/Downloads/application_train.csv"
-
-HOMECREDIT_EXCLUDE_COLS = ["SK_ID_CURR", "TARGET", "CODE_GENDER", "ORGANIZATION_TYPE"]
-
-WOE_BIN_PIPELINE = Pipeline(
-    steps=[
-        ("tree_bin", weight_of_evidence.TreeBinner()),
-        ("woe_scale", weight_of_evidence.LogitScaler()),
-        ("standard_scale", StandardScaler()),
-        ("log_reg_classifier", LogisticRegression(solver="lbfgs", max_iter=1e6)),
-    ]
-)
-
 
 @pytest.fixture
 def single_var_decision_tree():
@@ -165,25 +152,3 @@ def test_logit_scaler_fit(logit_scaler):
 def test_logit_scaler_transform(logit_scaler):
     X_scaled = logit_scaler.fit_transform(X_CAT_DF, Y)
     assert np.abs((X_scaled.company_age - EXPECTED_LOGIT_VALUES)).max() < 1e-6
-
-
-def test_pipeline():
-    """
-    Tests E2E pipeline on homecredit dataset. Requires it to be downloaded before.
-
-    This is quite slow!
-    """
-    data = pd.read_csv(HOMECREDIT_PATH)
-    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=1234)
-
-    X = data.drop(columns=HOMECREDIT_EXCLUDE_COLS)
-    y = data.TARGET
-    auc_total = 0
-    for train, test in cv.split(X, y):
-        prediction = WOE_BIN_PIPELINE.fit(X.iloc[train], y.iloc[train]).predict_proba(
-            X.iloc[test]
-        )
-        auc = roc_auc_score(y_true=y.iloc[test], y_score=prediction[:, 1])
-        auc_total += auc
-
-    assert (auc_total / 5) > 0.72

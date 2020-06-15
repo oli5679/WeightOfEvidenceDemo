@@ -1,18 +1,21 @@
 from sklearn.base import BaseEstimator, TransformerMixin
 import numpy as np
 import pandas as pd
-import scorecardpy as sc
 import scipy
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LogisticRegression
 
 import matplotlib.pyplot as plt
+
+"""
+Feature processing transformers based on Tree binning & weight of evidence encoding
+"""
 
 
 class Node:
     """
     Decision tree Node
-
     Attributes:
         threshold (numeric): split chosen to maximise Gini
             NOTE - None if cannot find any that satisfies min_gini_decrease & min_samples_per_node
@@ -32,14 +35,11 @@ class Node:
 class SingleVariableDecisionTreeClassifier:
     """
     Single variable Decision tree classifier
-
     NOTE - only works for binary decision trees
-
     Attributes:
         max_depth (int): Maximum number of layers to tree
         min_gini_decrease (numeric): Minimum decrease in Gini for split to be accepted
         min_samples_per_node (numeric): Minimum samples in left and right, for split to be accepted
-
     Methods:
         fit: finds best splits
     """
@@ -52,13 +52,10 @@ class SingleVariableDecisionTreeClassifier:
     def _gini(self, y_1, y_count):
         """
         Finds Gini Impurity values for series of y values
-
         Formula = 1 - p^2 - (1-p)^2
-
         Args:
             y_1 (series): Number of observations with y == 1
             y_count (series): Total Numer of observations
-
         Returns:
             gini_impurity (series): Gini Impurity values for series
         """
@@ -74,7 +71,6 @@ class SingleVariableDecisionTreeClassifier:
         
         Args:
             y (series): series to calc. Gini decreases
-
         Returns:
             gini_decreases (series): decrease in Gini from splitting before/after every point
             y_count_left (series): count of cumul datapoints. before each point
@@ -106,21 +102,17 @@ class SingleVariableDecisionTreeClassifier:
         """
         Finds split for X that has lowest average impurity of the two children, weighted by 
         population.
-
         Args:
             X (series): variable to be split
             y (series): target
-
         Returns:
             split (numeric): variable to be split
-
         NOTE - X & y must be sorted by X values
-
         NOTE - returns None if no split found that satisfies min_gini_decrease & min_samples_per_node
         """
         gini_decreases, y_count_left, y_count_right = self._find_gini_decreases(y)
 
-        #  only consider candidate splits where:
+        #  only consider candidate splits where:
         #    (a) X value has changed
         #    (b) At least min_samples_per_node in both left & right splits
         #    (c) Gini decrease of at least min_gini_decrease
@@ -146,11 +138,9 @@ class SingleVariableDecisionTreeClassifier:
             min_gini_decrease
             min_samples_per_node
             max_depth
-
         Args:
             X (series): variable to be split
             y (series): target to split on
-
         Returns:
             Node object recording split threshold, and left & right children with possible further splits
         """
@@ -172,7 +162,6 @@ class SingleVariableDecisionTreeClassifier:
     def _unpack_splits(self, node):
         """
         Recursively unpacks splits from node, and appends leaf nodes' thresholds to self.splits_
-
         Args:
             node (Node): node to be unpacked
         """
@@ -187,13 +176,10 @@ class SingleVariableDecisionTreeClassifier:
     def fit(self, X, y):
         """
         Finds best splits for X, given target y
-
         Args:
             X (Series): Varaible to find splits
             y (Series): Binary target
-
         saves splits to self.splits_
-
         NOTE - only works for numeric variables
         """
         self.splits_ = [-np.inf, np.inf]
@@ -212,12 +198,10 @@ class SingleVariableDecisionTreeClassifier:
 class TreeBinner(BaseEstimator, TransformerMixin):
     """
     Autobinning tool - automated tree binning by fitting single variable decision trees
-
     Attributes:
         max_depth (int): Maximum number of layers to tree
         min_gini_decrease (numeric): Minimum decrease in Gini for split to be accepted
         min_samples_per_node (numeric): Minimum samples in left and right, for split to be accepted
-
     Methods:
         fit: finds bin-thresholds for columns X given target y 
         transform: bins X according to found bin-thresholds
@@ -225,11 +209,9 @@ class TreeBinner(BaseEstimator, TransformerMixin):
     """
 
     def __init__(self, max_depth=5, min_gini_decrease=1e-4, min_samples_per_node=10):
-        self.single_var_decision_tree = SingleVariableDecisionTreeClassifier(
-            max_depth=max_depth,
-            min_gini_decrease=min_gini_decrease,
-            min_samples_per_node=min_samples_per_node,
-        )
+        self.max_depth = max_depth
+        self.min_gini_decrease = min_gini_decrease
+        self.min_samples_per_node = min_samples_per_node
 
     def fit(self, X, y):
         """
@@ -242,11 +224,17 @@ class TreeBinner(BaseEstimator, TransformerMixin):
         Returns:
             self (BaseEstimator): fitted Treebinner
         """
+        self.single_var_decision_tree_ = SingleVariableDecisionTreeClassifier(
+            max_depth=self.max_depth,
+            min_gini_decrease=self.min_gini_decrease,
+            min_samples_per_node=self.min_samples_per_node,
+        )
+
         self.splits_ = {}
 
         for col in X.select_dtypes(include=["int64", "float64"]).columns:
-            self.single_var_decision_tree.fit(X[col], y)
-            self.splits_[col] = self.single_var_decision_tree.splits_
+            self.single_var_decision_tree_.fit(X[col], y)
+            self.splits_[col] = self.single_var_decision_tree_.splits_
 
         return self
 
@@ -266,22 +254,17 @@ class TreeBinner(BaseEstimator, TransformerMixin):
             breaks = self.splits_[feature]
             labels = pd.IntervalIndex.from_breaks(breaks).astype(str)
             _X[feature] = pd.cut(X[feature], breaks, labels=labels).astype("str")
-        _X[X.isna()] = "missing"
+            _X.loc[X[feature].isna(), feature] = "missing"
         return _X
 
 
 class LogitScaler(BaseEstimator, TransformerMixin):
     """
     Calculates Logit values for all categorical variables
-
     natural log of odds of target  rate in bin
-
     Clips to be between max & min, to avoid infinity issues.
-
     NOTE - leaves numeric columns unchanged
-
     NOTE - does not scale by population bad-rate
-
     Methods:
         fit: finds quasi-woe-values for each category, for each categorical varaible
         transform: maps values to fitted logit values of bad rate for each category 
@@ -295,9 +278,7 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         """
         Args:
             X (dataframe): data to be Woe scaled
-
             y (series): target
-
         Returns:
             self (BaseEstimator): fitted transformer
         """
@@ -316,7 +297,6 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         """
         Args
         X (dataframe) : data to be logit-scaled
-
         NOTE - unseen categories are conservatively scaled with maximum WOE value
         
         Returns
@@ -324,23 +304,18 @@ class LogitScaler(BaseEstimator, TransformerMixin):
         """
         _X = X.copy()
         for var in self.logit_values_.keys():
-            logit_val = X[var].map(self.logit_values_[var])
+            _X[var] = X[var].map(self.logit_values_[var])
             # Fill unseen values with highest logit == most risky
             logit_max = max(self.logit_values_[var].values())
-            logit_val[logit_val.isna()] = logit_max
-            _X[var] = logit_val
-
+            _X[var].fillna(logit_max, inplace=True)
         return _X
 
 
 def plot_bins(X, y, splits, space="%"):
     """
     Plots target rates & counts for bins of splits
-
     Numeric column, split by 'splits' thresholds
-
     Categorical column, split by category 
-
     Args:
         X (dataframe): columns to be plotted
         y (target): target series
@@ -379,4 +354,116 @@ def plot_bins(X, y, splits, space="%"):
         plt.title(f"Target rate vs. binned {col} \n")
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
 
-        plt.show(
+        plt.show()
+
+
+woebin_logit_pipeline = Pipeline(
+    steps=[
+        ("tree_bin", TreeBinner()),
+        ("woe_scale", LogitScaler()),
+        ("standard_scale", StandardScaler()),
+        ("log_reg_classifier", LogisticRegression(solver="lbfgs", max_iter=1e6)),
+    ]
+)
+
+
+class ManualBinner(BaseEstimator, TransformerMixin):
+    """
+    Automatically calculates Quasi-WOE bin values according to pre-specified bin thresholds
+
+    quasi-woe = logit of average bad rate in bin, will make data linear in log-odds of bad rate.
+
+    Methods
+    -------
+        fit
+            finds quasi-woe-values for each bin
+        transform
+            maps values to logit of bad rate for bin
+        fit_transform
+            fit & transform
+    """
+
+    def __init__(self, manual_bins, clip_value=1e6):
+        """
+        Parameters
+        ----------
+            manual_bins : dict
+                bins to be used for encoding (key = variable name, values = cutoffs)
+                NOTE - bins must be in descending order, with first value >= largest possible value in dataset
+        """
+        self.manual_bins = manual_bins
+        self.clip_value = clip_value
+
+    def _manual_bin(self, X):
+        _X = X.copy()
+        for var in self.manual_bins:
+            _X[f"{var}_binned"] = np.nan
+            for threshold in self.manual_bins[var]:
+                _X.loc[_X[var] < threshold, f"{var}_binned"] = str(threshold)
+                _X.loc[_X[var].isna(), f"{var}_binned"] = "missing"
+
+        return _X
+
+    def fit(self, X, y):
+        """
+        Parameters
+        ----------
+            X : dataframe
+                data to be encoded
+
+            y : target
+
+        Returns
+        ------
+            self : BaseEstimator
+                fitted transformer
+        """
+        self.woe_values_ = {}
+        X_binned = self._manual_bin(X)
+        X_binned["bad_rate"] = y
+        for var in self.manual_bins:
+            agg = X_binned.groupby(f"{var}_binned")[["bad_rate"]].mean()
+            agg["woe"] = np.clip(
+                -self.clip_value, scipy.special.logit(agg["bad_rate"]), self.clip_value
+            )
+            self.woe_values_[var] = agg["woe"].to_dict()
+        return self
+
+    def transform(self, X, y=None):
+        """
+        Parameters
+        -----------
+            X : dataframe
+                data to be encoded
+        Returns
+        -------
+            X : dataframe
+                encoded data
+        """
+        _X = X.copy()
+        X_binned = self._manual_bin(_X)
+        for var in self.manual_bins:
+            _X[var] = X_binned[f"{var}_binned"].map(self.woe_values_[var])
+        return _X
+
+def plot_feature_importance(
+    var_names, coefficients, n=10, output_dir=None, verbose=True
+):
+    """
+    Find logit regression feature importance
+    Args:
+        var_names (series): variable names
+        coefficients (series): regression coefficients
+        n (integer): how many features to plot
+    """
+    coef_df = pd.DataFrame()
+    coef_df["var_names"] = var_names
+    coef_df["coef_vals"] = coefficients
+    coef_df["abs_vals"] = np.abs(coef_df.coef_vals)
+    coef_df = coef_df.set_index("var_names").sort_values(by="abs_vals", ascending=True)
+    if verbose:
+        plt.figure(figsize=(4, 8))
+        ax = coef_df.tail(n).coef_vals.plot.barh()
+        plt.title(f"Top {n} features - logistic regression \n")
+        plt.show()
+    return coef_df.reset_index()
