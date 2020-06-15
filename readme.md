@@ -12,7 +12,7 @@ Download Anaconda [here](https://docs.anaconda.com/anaconda/install/)
 
 ## Setup
 
-### install & activate environmentß
+### install & activate environment
 
     conda env create -f environment.yml
     conda activate weightOfEvidence
@@ -22,7 +22,7 @@ Download Anaconda [here](https://docs.anaconda.com/anaconda/install/)
     cd weight_of_evidence
     bash get_dataset.sh
 
-### run unit tests*
+### run unit tests
 
     cd weight_of_evidence
     pytest .
