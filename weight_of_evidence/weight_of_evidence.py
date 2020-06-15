@@ -446,6 +446,7 @@ class ManualBinner(BaseEstimator, TransformerMixin):
             _X[var] = X_binned[f"{var}_binned"].map(self.woe_values_[var])
         return _X
 
+
 def plot_feature_importance(
     var_names, coefficients, n=10, output_dir=None, verbose=True
 ):
